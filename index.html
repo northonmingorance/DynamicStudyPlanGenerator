@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Study Plan Generator</title>
+    <style>
+        /* --- Reference CSS --- */
+        body {
+            background-color: #fdfdf6;
+            color: #333;
+            font-family: Georgia, 'Times New Roman', serif;
+            margin: 2rem;
+            line-height: 1.6;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.8rem;
+            margin-bottom: 1.5rem;
+            color: #005091;
+            text-shadow: 1px 1px #ddd;
+        }
+        section {
+            border: 1px solid #ccc;
+            padding: 1.5rem 2rem;
+            margin-bottom: 2.5rem;
+            background-color: #fff;
+            box-shadow: 2px 2px 8px rgba(0,0,0,0.1);
+            border-radius: 4px;
+        }
+        h2 {
+            font-size: 2rem;
+            color: #004065;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+        h3 {
+            font-size: 1.5rem;
+            color: #005091;
+            margin-top: 1.5rem;
+        }
+        ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        li {
+            margin-bottom: 1.5rem;
+        }
+        a {
+            color: #005091;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .practice {
+            background-color: #f6f6f0;
+            padding: 1rem 1.5rem;
+            margin-top: 1.5rem;
+            border-left: 5px solid #ccc;
+            border-radius: 0 4px 4px 0;
+        }
+        .practice p {
+            display: inline;
+        }
+        .image-container {
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            margin: 1.5rem 0;
+            gap: 1.5rem;
+        }
+        .image-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.8rem;
+            max-width: 400px;
+        }
+        .lesson-img {
+            max-width: 400px;
+            height: 250px;
+            object-fit: cover;
+            border: 1px solid #bbb;
+            box-shadow: 1px 1px 4px rgba(0,0,0,0.1);
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 16px;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: #005091;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.2s;
+            margin-left: 8px;
+        }
+        button:hover {
+            background-color: #004065;
+        }
+        button:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
+        }
+        
+        /* --- App & Video Specific Styles (Updated) --- */
+        #app-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 3rem;
+        }
+        #topic-input {
+            font-size: 1.2rem;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 400px;
+        }
+        #generate-btn {
+            font-size: 1.2rem;
+            padding: 10px 20px;
+            margin-left: 0;
+        }
+        #loader {
+            text-align: center;
+            font-size: 1.5rem;
+            display: none;
+        }
+        .summary {
+            font-size: 1rem;
+            color: #444;
+            margin-top: 0.5rem;
+            margin-bottom: 1.5rem;
+            background-color: #f6f6f0;
+            padding: 1rem;
+            border-radius: 4px;
+        }
+        .video-list-item {
+            border-top: 1px solid #eee;
+            padding-top: 1.5rem;
+        }
+        .video-list-item-title {
+            font-size: 1.2rem;
+            margin-bottom: 0.8rem;
+            color: #333;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        }
+        .video-embed-container {
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            padding-top: 56.25%; /* 16:9 Aspect Ratio */
+            margin-bottom: 0.8rem;
+        }
+        .video-embed-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .community-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Dynamic Study Plan Generator</h1>
+
+    <div id="app-controls">
+        <input type="text" id="topic-input" placeholder="Enter any topic (e.g., 'Sourdough Baking')...">
+        <button id="generate-btn">Generate Study Plan</button>
+    </div>
+
+    <div id="loader">
+        <p>🧙‍♂️ Generating your custom study plan... This may take a moment.</p>
+    </div>
+
+    <div id="plan-container">
+        </div>
+
+    <script>
+        // --- DOM Elements ---
+        const generateBtn = document.getElementById('generate-btn');
+        const topicInput = document.getElementById('topic-input');
+        const planContainer = document.getElementById('plan-container');
+        const loader = document.getElementById('loader');
+
+        // --- API Endpoint for Secure Backend Proxy ---
+        const PROXY_ENDPOINT = 'https://us-central1-useful-figure-460804-s6.cloudfunctions.net/study-plan-proxy/proxy';
+
+        // --- Helper for API Calls (Routes all requests through the secure proxy) ---
+        async function makeApiCall(target, query, geminiBody = null) {
+            try {
+                const options = {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target: target,
+                        query: query,
+                        body: geminiBody // Pass the Gemini-specific body structure
+                    })
+                };
+                const response = await fetch(PROXY_ENDPOINT, options);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`Proxy error for ${target}: ${errorData.error || response.statusText}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error("API Call Error:", error);
+                alert("An error occurred while communicating with the backend proxy. Check the console for details.");
+                return null;
+            }
+        }
+
+        // --- Gemini API Functions (Now uses the proxy) ---
+        async function callGemini(prompt) {
+            const geminiPayload = { contents: [{ parts: [{ text: prompt }] }] };
+            const result = await makeApiCall('gemini', null, geminiPayload);
+            return result?.candidates?.[0]?.content?.parts?.[0]?.text.trim();
+        }
+
+        async function getLessonPlan(topic) {
+            const prompt = `Generate a complete study plan structure for the topic "${topic}". The plan should have a maximum of 4 logical, progressive lesson sections. Return ONLY a valid JSON object with a single key "lessons" which is an array of strings, where each string is a lesson title. Do not include markdown or any other text. Example for "Sourdough": {"lessons": ["Creating and Maintaining a Starter", "Mixing, Folding, and Bulk Fermentation", "Shaping, Proofing, and Scoring", "Baking and Cooling"]}`;
+            const response = await callGemini(prompt);
+            try {
+                const cleanResponse = response.replace(/```json|```/g, '').trim();
+                return JSON.parse(cleanResponse).lessons;
+            } catch (e) {
+                console.error("Failed to parse lesson plan from Gemini:", e);
+                return null;
+            }
+        }
+        
+        async function getLessonSummary(lessonTitle, videoTitles) {
+            const prompt = `Create a single, concise summary for the lesson "${lessonTitle}". This summary should synthesize the key points a learner can expect from the following list of tutorial videos: ${videoTitles}. The summary should provide a cohesive overview of the lesson's video content in one paragraph.`;
+            return await callGemini(prompt);
+        }
+
+        async function getPracticeTask(lessonTitle) {
+             const prompt = `Create a single, concrete, actionable practice task or exercise for a learner studying the lesson "${lessonTitle}". The task should be a single paragraph.`;
+             return await callGemini(prompt);
+        }
+
+        async function getCommunities(topic) {
+            const prompt = `List at least 5 relevant online communities for people studying "${topic}". Include subreddits, dedicated forums, or Discord servers. Return ONLY a valid JSON object with a key "communities", which is an array of objects, each with "name" and "url" properties. Do not include markdown. Example: {"communities": [{"name": "r/Sourdough on Reddit", "url": "https://www.reddit.com/r/Sourdough"}]}`;
+            const response = await callGemini(prompt);
+             try {
+                const cleanResponse = response.replace(/```json|```/g, '').trim();
+                return JSON.parse(cleanResponse).communities;
+            } catch (e) {
+                console.error("Failed to parse communities from Gemini:", e);
+                return null;
+            }
+        }
+
+        async function getSingleCommunity(topic) {
+            const prompt = `Find one more relevant online community for people studying "${topic}". Return ONLY a valid JSON object with "name" and "url" properties. Do not include markdown. Example: {"name": "WeaveTech Forums", "url": "https://weavetech.forums.net"}`;
+            const response = await callGemini(prompt);
+            try {
+                const cleanResponse = response.replace(/```json|```/g, '').trim();
+                return JSON.parse(cleanResponse);
+            } catch (e) {
+                console.error("Failed to parse single community from Gemini:", e);
+                return null;
+            }
+        }
+
+        // --- Unsplash API Function (Now uses the proxy) ---
+        async function getImages(topic, lessonTitle) {
+            const query = `${topic} ${lessonTitle}`;
+            // The response from the proxy for Unsplash /random is an array directly
+            const data = await makeApiCall('unsplash', query);
+            if (!data || !Array.isArray(data) || data.length === 0) {
+                return [];
+            }
+            return data.slice(0, 3).map(img => ({ url: img.urls.regular, alt: img.alt_description }));
+        }
+        
+        // --- YouTube API Function (Now uses the proxy) ---
+        async function getVideos(topic, lessonTitle) {
+            const searchQuery = `"${topic}" "${lessonTitle}" tutorial`;
+            const data = await makeApiCall('youtube', searchQuery);
+            return data?.items?.map(item => ({ id: item.id.videoId, title: item.snippet.title })) || [];
+        }
+        
+        // --- Main App Logic (No changes needed here) ---
+        generateBtn.addEventListener('click', async () => {
+            const topic = topicInput.value.trim();
+            if (!topic) {
+                alert('Please enter a topic.');
+                return;
+            }
+
+            // Reset UI
+            generateBtn.disabled = true;
+            loader.style.display = 'block';
+            planContainer.innerHTML = '';
+            
+            // 1. Get lesson titles from Gemini
+            let lessonTitles = await getLessonPlan(topic);
+            if (!lessonTitles) {
+                alert("Could not generate lesson titles. Please try another topic.");
+                loader.style.display = 'none';
+                generateBtn.disabled = false;
+                return;
+            }
+
+            // 2. Build the plan structure
+            let html = `<h1>${topic} Study Plan</h1>`;
+
+            for (const [index, lessonTitle] of lessonTitles.entries()) {
+                 html += `<section><h2>Lesson ${index + 1}: ${lessonTitle}</h2>`;
+
+                // Images
+                const images = await getImages(topic, lessonTitle);
+                html += '<div class="image-container">';
+                images.forEach((img, i) => {
+                    html += `<div class="image-item" id="image-item-${index}-${i}">
+                                <img src="${img.url}" alt="${img.alt}" class="lesson-img">
+                                <button onclick="refreshImage(this, '${topic}', '${lessonTitle}')">New Image</button>
+                            </div>`;
+                });
+                html += '</div>';
+
+                // Videos and Lesson Summary
+                html += '<h3>Recommended Tutorials</h3>';
+                const videos = await getVideos(topic, lessonTitle);
+                const videoTitlesForSummary = videos.slice(0, 3).map(v => `"${v.title}"`).join(', ');
+                const lessonSummary = await getLessonSummary(lessonTitle, videoTitlesForSummary);
+
+                html += `<div class="summary">${lessonSummary || 'Here you will find a collection of videos to help you master this lesson.'}</div>`;
+                
+                html += '<ul>';
+                for (let i = 0; i < 3 && i < videos.length; i++) {
+                    const video = videos[i];
+                    html += `<li class="video-list-item" id="video-item-${index}-${i}">
+                                <h4 class="video-list-item-title">${video.title}</h4>
+                                <div class="video-embed-container">
+                                    <iframe src="https://www.youtube.com/embed/${video.id}" title="${video.title}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                </div>
+                                <button onclick="refreshVideo(this, '${topic}', '${lessonTitle}')">New Video</button>
+                            </li>`;
+                }
+                html += '</ul>';
+
+                // Practice
+                const task = await getPracticeTask(lessonTitle);
+                html += `<div class="practice" id="practice-item-${index}">
+                            <h3>Practice</h3>
+                            <p>${task || 'Create a small project using the concepts from this lesson.'}</p>
+                            <button onclick="refreshPractice(this, '${lessonTitle}')">New Task</button>
+                         </div>`;
+                
+                html += '</section>';
+            }
+            
+            // Communities
+            const communities = await getCommunities(topic);
+            if (communities && communities.length > 0) {
+                 html += `<section><h2>Communities & Forums</h2><ul>`;
+                 communities.forEach(c => {
+                    html += `<li class="community-item">
+                                <a href="${c.url}" target="_blank">${c.name}</a>
+                                <button onclick="refreshCommunity(this, '${topic}')">New Link</button>
+                            </li>`;
+                 });
+                 html += `</ul></section>`;
+            }
+
+            planContainer.innerHTML = html;
+            loader.style.display = 'none';
+            generateBtn.disabled = false;
+        });
+
+        // --- Interactivity Functions (must be global, no changes needed here) ---
+        async function refreshImage(button, topic, lessonTitle) {
+            button.disabled = true;
+            button.textContent = '...';
+            const imgElement = button.previousElementSibling;
+            const newImages = await getImages(topic, lessonTitle);
+            if (newImages.length > 0) {
+                imgElement.src = newImages[0].url;
+                imgElement.alt = newImages[0].alt;
+            }
+            button.disabled = false;
+            button.textContent = 'New Image';
+        }
+
+        async function refreshVideo(button, topic, lessonTitle) {
+            button.disabled = true;
+            button.textContent = '...';
+            const liElement = button.closest('.video-list-item');
+            const newVideos = await getVideos(topic, lessonTitle);
+            if (newVideos.length > 0) {
+                const newVideo = newVideos[Math.floor(Math.random() * newVideos.length)];
+                liElement.innerHTML = `<h4 class="video-list-item-title">${newVideo.title}</h4>
+                                        <div class="video-embed-container">
+                                            <iframe src="https://www.youtube.com/embed/${newVideo.id}" title="${newVideo.title}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                        </div>
+                                        <button onclick="refreshVideo(this, '${topic}', '${lessonTitle}')">New Video</button>`;
+            } else {
+                 button.disabled = false;
+                 button.textContent = 'New Video';
+            }
+        }
+        
+        async function refreshPractice(button, lessonTitle) {
+            button.disabled = true;
+            button.textContent = '...';
+            const pElement = button.previousElementSibling;
+            const newTask = await getPracticeTask(lessonTitle);
+            if (newTask) {
+                 pElement.textContent = newTask;
+            }
+            button.disabled = false;
+            button.textContent = 'New Task';
+        }
+
+        async function refreshCommunity(button, topic) {
+            button.disabled = true;
+            button.textContent = '...';
+            const aElement = button.previousElementSibling;
+            const newCommunity = await getSingleCommunity(topic);
+            if (newCommunity && newCommunity.name && newCommunity.url) {
+                aElement.href = newCommunity.url;
+                aElement.textContent = newCommunity.name;
+            }
+            button.disabled = false;
+            button.textContent = 'New Link';
+        }
+
+    </script>
+</body>
+</html>
